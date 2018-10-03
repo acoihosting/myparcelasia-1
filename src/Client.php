@@ -1,5 +1,5 @@
 <?php
-// A wrapper for MyParcelAsia API
+// A client for MyParcelAsia API
 // Based on documentation at https://myparcelasia.com/api/v1
 
 namespace apih\MyParcelAsia;
@@ -37,53 +37,76 @@ class Client
 		return $this->last_error;
 	}
 
+	protected function logError($function, $request, $response)
+	{
+		$this->last_error = [
+			'function' => $function,
+			'request' => $request,
+			'response' => $response
+		];
+
+		$error_message = 'MyParcelAsia Error:' . PHP_EOL;
+		$error_message .= 'function: ' . $function . PHP_EOL;
+		$error_message .= 'request: ' . PHP_EOL;
+		$error_message .= '-> url: ' . $request['url'] . PHP_EOL;
+		$error_message .= '-> data: ' . json_encode($request['data']) . PHP_EOL;
+		$error_message .= 'response: ' . PHP_EOL;
+		$error_message .= '-> http_code: ' . $response['http_code'] . PHP_EOL;
+		$error_message .= '-> body: ' . $response['body'] . PHP_EOL;
+
+		error_log($error_message);
+	}
+
 	protected function curlInit()
 	{
+		$this->last_error = null;
+
 		$ch = curl_init();
 
 		curl_setopt($ch, CURLOPT_HEADER, false);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
 		if ($this->use_ssl === false) {
 			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 			curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 		}
 
-		curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-
 		return $ch;
 	}
 
-	protected function curlPostRequest($function_name, $action, $query_data = [])
+	protected function curlPostRequest($function, $action, $data = [])
 	{
-		$query_data = array_merge([
+		$url = $this->url . $action;
+
+		$data = array_merge([
 			'api_key' => $this->api_key
-		], $query_data);
+		], $data);
 
 		$ch = $this->curlInit();
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($query_data));
-		curl_setopt($ch, CURLOPT_URL, $this->url . $action);
 
-		$response = curl_exec($ch);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+		curl_setopt($ch, CURLOPT_URL, $url);
+
+		$body = curl_exec($ch);
 		$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
 		curl_close($ch);
 
-		$decoded_response = json_decode($response, true);
-		$this->last_error = null;
+		$decoded_body = json_decode($body, true);
 
-		if ($http_code !== 200 || $decoded_response === null) {
-			$this->last_error = [
-				'function' => $function_name,
-				'http_code' => $http_code,
-				'response' => $response
-			];
+		if ($http_code !== 200 || json_last_error() !== JSON_ERROR_NONE) {
+			$this->logError(
+				$function,
+				compact('url', 'data'),
+				compact('http_code', 'body')
+			);
 
-			error_log('MyParcelAsia Error: ' . implode($this->last_error, ' - '));
+			return null;
 		}
 
-		return $decoded_response;
+		return $decoded_body;
 	}
 
 	public function getProductTypes()
