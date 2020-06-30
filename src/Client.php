@@ -1,13 +1,13 @@
 <?php
 // A client for MyParcelAsia API
-// Based on documentation at https://myparcelasia.com/api/v1
+// Based on documentation at https://app.myparcelasia.com/apiv2
 
 namespace apih\MyParcelAsia;
 
 class Client
 {
-	const DEMO_URL = 'https://demo.myparcelasia.com/api/v1/';
-	const LIVE_URL = 'https://myparcelasia.com/api/v1/';
+	const DEMO_URL = 'http://mpa-demo.ap-southeast-1.elasticbeanstalk.com/apiv2/';
+	const LIVE_URL = 'https://app.myparcelasia.com/apiv2/';
 
 	protected $api_key;
 	protected $secret_key;
@@ -57,6 +57,11 @@ class Client
 		error_log($error_message);
 	}
 
+	protected function snakeCase($value)
+	{
+		return strtolower(preg_replace('/(?<!^)([A-Z])/', '_' . '$1', $value));
+	}
+
 	protected function curlInit()
 	{
 		$this->last_error = null;
@@ -75,8 +80,9 @@ class Client
 		return $ch;
 	}
 
-	protected function curlPostRequest($function, $action, $data = [])
+	protected function curlPostRequest($function, $data = [], $return_raw_data = false)
 	{
+		$action = $this->snakeCase($function);
 		$url = $this->url . $action;
 
 		$data = array_merge([
@@ -94,6 +100,8 @@ class Client
 
 		curl_close($ch);
 
+		if ($return_raw_data) return $body;
+
 		$decoded_body = json_decode($body, true);
 
 		if ($http_code !== 200 || json_last_error() !== JSON_ERROR_NONE) {
@@ -109,57 +117,74 @@ class Client
 		return $decoded_body;
 	}
 
-	public function getProductTypes()
+	public function user()
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_product_types');
+		return $this->curlPostRequest(__FUNCTION__);
 	}
 
-	public function getCountries()
+	public function getPostcodeDetails($postcode)
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_countries');
+		return $this->curlPostRequest(__FUNCTION__, ['postcode' => $postcode]);
 	}
 
-	public function getMyStates()
+	public function checkPrice($data)
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_my_states');
+		return $this->curlPostRequest(__FUNCTION__, $data);
 	}
 
-	public function getQuotes($data)
+	public function getParcelSizes()
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_quotes', $data);
+		return $this->curlPostRequest(__FUNCTION__);
+	}
+
+	public function getContentTypes()
+	{
+		return $this->curlPostRequest(__FUNCTION__);
 	}
 
 	public function createShipment($data)
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'create_shipment', $data);
+		return $this->curlPostRequest(__FUNCTION__, $data);
 	}
 
-	public function getCartContent()
+	public function getCartItems()
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_cart_content');
+		return $this->curlPostRequest(__FUNCTION__);
 	}
 
-	public function checkout($shipment_id)
+	public function checkout($shipment_keys)
 	{
-		if (!is_array($shipment_id)) {
-			$shipment_id = [$shipment_id];
-		}
-
-		$data = [
-			'shipment_id' => $shipment_id
-		];
-
-		return $this->curlPostRequest(__FUNCTION__, 'checkout', $data);
+		return $this->curlPostRequest(__FUNCTION__, ['shipment_keys' => $shipment_keys]);
 	}
 
-	public function getAllShipments()
+	public function getShipmentStatuses()
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_all_shipment');
+		return $this->curlPostRequest(__FUNCTION__);
 	}
 
-	public function getAllConsignmentNotes()
+	public function getShipments($shipment_keys)
 	{
-		return $this->curlPostRequest(__FUNCTION__, 'get_all_connote');
+		return $this->curlPostRequest(__FUNCTION__, ['shipment_keys' => $shipment_keys]);
+	}
+
+	public function getShipmentHistory($page = 1)
+	{
+		return $this->curlPostRequest(__FUNCTION__, ['page' => $page]);
+	}
+
+	public function getConsignmentNote($data)
+	{
+		return $this->curlPostRequest(__FUNCTION__, $data, true);
+	}
+
+	public function checkPriceBulk($data)
+	{
+		return $this->curlPostRequest(__FUNCTION__, $data);
+	}
+
+	public function createBulkAwb($data)
+	{
+		return $this->curlPostRequest(__FUNCTION__, $data);
 	}
 }
 ?>
